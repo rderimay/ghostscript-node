@@ -25,6 +25,10 @@ export declare function isValidPDF(pdfBuffer: Buffer): Promise<boolean>;
 /**
  * This function try, reduce size of your PDF not destroying quality
  * @param pdfBuffer Buffer
+ * @param options Compression options
  * @returns Buffer
  */
-export declare function compressPDF(pdfBuffer: Buffer | string, encoding?: BufferEncoding): Promise<Buffer>;
+export declare function compressPDF(pdfBuffer: Buffer | string, options?: {
+    encoding?: BufferEncoding;
+    args?: string[];
+}): Promise<Buffer>;

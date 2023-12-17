@@ -230,16 +230,22 @@ export async function isValidPDF(pdfBuffer: Buffer): Promise<boolean> {
 /**
  * This function try, reduce size of your PDF not destroying quality
  * @param pdfBuffer Buffer
+ * @param options Compression options
  * @returns Buffer
  */
-export async function compressPDF(pdfBuffer: Buffer | string, encoding?: BufferEncoding): Promise<Buffer> {
+export async function compressPDF(pdfBuffer: Buffer | string, options: {
+  encoding?: BufferEncoding,
+  args?: string[]
+} = {
+  encoding: "base64"
+}): Promise<Buffer> {
   try {
     if(typeof pdfBuffer === 'string'){
-      pdfBuffer = Buffer.from(pdfBuffer, encoding ?? 'base64')
+      pdfBuffer = Buffer.from(pdfBuffer, options.encoding)
     }
     const compressedPdf = await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
       await exec(
-        `gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 -sOutputFile=${output} ${input}`,
+        `gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${(options.args && options.args.length > 0) ? `${options.args?.join(' ')} ` : ""}-sOutputFile=${output} ${input}`,
       );
     });
     if (pdfBuffer.length < compressedPdf.length) {
