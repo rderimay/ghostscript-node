@@ -44,14 +44,15 @@ async function useTempFilesPDFInOut(inputBuffer, fn) {
 async function useTempFilesPDFIn(inputBuffer, fn) {
     return useTempFilesPDF({ input: { writeBuffers: [inputBuffer] } }, async ({ input }) => fn(input[0]));
 }
-async function combinePDFs(pdfBuffers) {
+async function combinePDFs(pdfBuffers, options = {}) {
     if (pdfBuffers.length === 0)
         return Buffer.alloc(0);
     if (pdfBuffers.length === 1)
         return pdfBuffers[0];
     try {
         return await useTempFilesPDF({ inputs: { writeBuffers: pdfBuffers }, output: { numFiles: 1 } }, async ({ inputs, output }) => {
-            await exec(`gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${inputs.join(' ')} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`);
+            var _a;
+            await exec(`gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${(options.args && options.args.length > 0) ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ""}${inputs.join(' ')} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`);
             return fs_extra_1.default.readFile(output[0]);
         });
     }

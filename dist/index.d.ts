@@ -1,5 +1,7 @@
 /// <reference types="node" />
-export declare function combinePDFs(pdfBuffers: Buffer[]): Promise<Buffer>;
+export declare function combinePDFs(pdfBuffers: Buffer[], options?: {
+    args?: string[];
+}): Promise<Buffer>;
 export declare function countPDFPages(pdfBuffer: Buffer): Promise<number>;
 export declare function extractPDFPages(pdfBuffer: Buffer, firstPage: number, lastPage: number): Promise<Buffer>;
 export declare function rotatePDF(pdfBuffer: Buffer, direction: '90' | '180' | '270'): Promise<Buffer>;

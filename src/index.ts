@@ -66,7 +66,9 @@ async function useTempFilesPDFIn<T>(inputBuffer: Buffer, fn: TempFileFnSingle<T>
   return useTempFilesPDF({ input: { writeBuffers: [inputBuffer] } }, async ({ input }) => fn(input[0]));
 }
 
-export async function combinePDFs(pdfBuffers: Buffer[]): Promise<Buffer> {
+export async function combinePDFs(pdfBuffers: Buffer[], options: {
+  args?: string[]
+} = {}): Promise<Buffer> {
   if (pdfBuffers.length === 0) return Buffer.alloc(0);
   if (pdfBuffers.length === 1) return pdfBuffers[0];
 
@@ -75,7 +77,7 @@ export async function combinePDFs(pdfBuffers: Buffer[]): Promise<Buffer> {
       { inputs: { writeBuffers: pdfBuffers }, output: { numFiles: 1 } },
       async ({ inputs, output }) => {
         await exec(
-          `gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${inputs.join(
+          `gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${(options.args && options.args.length > 0) ? `${options.args?.join(' ')} ` : ""}${inputs.join(
             ' ',
           )} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`,
         );
