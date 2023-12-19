@@ -194,7 +194,8 @@ exports.isValidPDF = isValidPDF;
  * @returns Buffer
  */
 async function compressPDF(pdfBuffer, options = {
-    encoding: "base64"
+    encoding: "base64",
+    args: ["-dPDFSETTINGS=/screen"]
 }) {
     try {
         if (typeof pdfBuffer === 'string') {
@@ -202,7 +203,7 @@ async function compressPDF(pdfBuffer, options = {
         }
         const compressedPdf = await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
             var _a;
-            await exec(`gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${(options.args && options.args.length > 0) ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ""}-sOutputFile=${output} ${input}`);
+            await exec(`gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -sOutputFile=${output} -dCompatibilityLevel=1.4 -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${(options.args && options.args.length > 0) ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ""}-f ${input}`);
         });
         if (pdfBuffer.length < compressedPdf.length) {
             return pdfBuffer;
