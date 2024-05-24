@@ -44,7 +44,9 @@ async function useTempFilesPDFInOut(inputBuffer, fn) {
 async function useTempFilesPDFIn(inputBuffer, fn) {
     return useTempFilesPDF({ input: { writeBuffers: [inputBuffer] } }, async ({ input }) => fn(input[0]));
 }
-async function combinePDFs(pdfBuffers, options = {}) {
+async function combinePDFs(pdfBuffers, options = {
+    execPath: 'gs',
+}) {
     if (pdfBuffers.length === 0)
         return Buffer.alloc(0);
     if (pdfBuffers.length === 1)
@@ -52,7 +54,7 @@ async function combinePDFs(pdfBuffers, options = {}) {
     try {
         return await useTempFilesPDF({ inputs: { writeBuffers: pdfBuffers }, output: { numFiles: 1 } }, async ({ inputs, output }) => {
             var _a;
-            await exec(`gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${(options.args && options.args.length > 0) ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ""}${inputs.join(' ')} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`);
+            await exec(`${options.execPath} -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${options.args && options.args.length > 0 ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ''}${inputs.join(' ')} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`);
             return fs_extra_1.default.readFile(output[0]);
         });
     }
@@ -61,11 +63,13 @@ async function combinePDFs(pdfBuffers, options = {}) {
     }
 }
 exports.combinePDFs = combinePDFs;
-async function countPDFPages(pdfBuffer) {
+async function countPDFPages(pdfBuffer, options = {
+    execPath: 'gs',
+}) {
     try {
         return await useTempFilesPDFIn(pdfBuffer, async (input) => {
             const escapedInput = input.replace(/\\/g, '\\\\');
-            let { stdout } = await exec(`gs -q -dNOPAUSE -dBATCH -dNOSAFER -dNODISPLAY -c "(${escapedInput}) (r) file runpdfbegin pdfpagecount = quit"`);
+            let { stdout } = await exec(`${options.execPath} -q -dNOPAUSE -dBATCH -dNOSAFER -dNODISPLAY -c "(${escapedInput}) (r) file runpdfbegin pdfpagecount = quit"`);
             /**
              * Necessary for when Ghostscript detects a damaged but repairable PDF file, because then it outputs
              * the following before the number of pages (three spaces before each line starting with "****"):
@@ -92,10 +96,12 @@ async function countPDFPages(pdfBuffer) {
     }
 }
 exports.countPDFPages = countPDFPages;
-async function extractPDFPages(pdfBuffer, firstPage, lastPage) {
+async function extractPDFPages(pdfBuffer, firstPage, lastPage, options = {
+    execPath: 'gs',
+}) {
     try {
         return await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
-            await exec(`gs -q -dNOPAUSE -sDEVICE=pdfwrite -dBATCH -dNOSAFER -dFirstPage=${firstPage} -dLastPage=${lastPage} -dAutoRotatePages=/None -sOutputFile=${output} ${input}`);
+            await exec(`${options.execPath} -q -dNOPAUSE -sDEVICE=pdfwrite -dBATCH -dNOSAFER -dFirstPage=${firstPage} -dLastPage=${lastPage} -dAutoRotatePages=/None -sOutputFile=${output} ${input}`);
         });
     }
     catch (e) {
@@ -125,11 +131,12 @@ exports.rotatePDF = rotatePDF;
  * @returns
  */
 async function convertToPDFA(pdfBuffer, options = {
+    execPath: 'gs',
     version: 1,
 }) {
     try {
         return await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
-            await exec(`gs -dPDFA -dBATCH -dNOPAUSE -sColorConversionStrategy=UseDeviceIndependentColor -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=${options.version} -sOutputFile=${output} ${input}`);
+            await exec(`${options.execPath} -dPDFA -dBATCH -dNOPAUSE -sColorConversionStrategy=UseDeviceIndependentColor -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=${options.version} -sOutputFile=${output} ${input}`);
         });
     }
     catch (e) {
@@ -143,7 +150,9 @@ exports.convertToPDFA = convertToPDFA;
  * If `firstPage` is negative (e.g. -n), this refers to the last n pages and `lastPage` must be undefined.
  * All page numbers start at 1.
  */
-async function renderPDFPagesToPNG(pdfBuffer, firstPage, lastPage, resolution = 300) {
+async function renderPDFPagesToPNG(pdfBuffer, firstPage, lastPage, resolution = 300, options = {
+    execPath: 'gs',
+}) {
     const numPages = await countPDFPages(pdfBuffer);
     if (firstPage === undefined)
         firstPage = 1;
@@ -164,7 +173,7 @@ async function renderPDFPagesToPNG(pdfBuffer, firstPage, lastPage, resolution = 
     try {
         return await useTempFilesPDFIn(pdfBuffer, async (input) => {
             const outDir = tempy_1.default.directory();
-            await exec(`gs -q -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -sDEVICE=png16m -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r${resolution} -sOutputFile=${outDir}/%d.png -dFirstPage=${firstPage} -dLastPage=${lastPage} ${input}`);
+            await exec(`${options.execPath} -q -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -sDEVICE=png16m -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r${resolution} -sOutputFile=${outDir}/%d.png -dFirstPage=${firstPage} -dLastPage=${lastPage} ${input}`);
             const outFiles = [];
             for (let i = 1; i <= lastPage - firstPage + 1; i++) {
                 outFiles.push(await fs_extra_1.default.readFile(outDir + '/' + i + '.png'));
@@ -195,8 +204,9 @@ exports.isValidPDF = isValidPDF;
  * @returns Buffer
  */
 async function compressPDF(pdfBuffer, options = {
-    encoding: "base64",
-    args: ["-dPDFSETTINGS=/screen"]
+    execPath: 'gs',
+    encoding: 'base64',
+    args: ['-dPDFSETTINGS=/screen'],
 }) {
     try {
         if (typeof pdfBuffer === 'string') {
@@ -204,7 +214,7 @@ async function compressPDF(pdfBuffer, options = {
         }
         const compressedPdf = await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
             var _a;
-            await exec(`gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -sOutputFile=${output} -dCompatibilityLevel=1.4 -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${(options.args && options.args.length > 0) ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ""}-f ${input}`);
+            await exec(`${options.execPath} -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -sOutputFile=${output} -dCompatibilityLevel=1.4 -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${options.args && options.args.length > 0 ? `${(_a = options.args) === null || _a === void 0 ? void 0 : _a.join(' ')} ` : ''}-f ${input}`);
         });
         if (pdfBuffer.length < compressedPdf.length) {
             return pdfBuffer;

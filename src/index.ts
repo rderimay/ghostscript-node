@@ -66,9 +66,15 @@ async function useTempFilesPDFIn<T>(inputBuffer: Buffer, fn: TempFileFnSingle<T>
   return useTempFilesPDF({ input: { writeBuffers: [inputBuffer] } }, async ({ input }) => fn(input[0]));
 }
 
-export async function combinePDFs(pdfBuffers: Buffer[], options: {
-  args?: string[]
-} = {}): Promise<Buffer> {
+export async function combinePDFs(
+  pdfBuffers: Buffer[],
+  options: {
+    execPath?: string;
+    args?: string[];
+  } = {
+    execPath: 'gs',
+  },
+): Promise<Buffer> {
   if (pdfBuffers.length === 0) return Buffer.alloc(0);
   if (pdfBuffers.length === 1) return pdfBuffers[0];
 
@@ -77,9 +83,9 @@ export async function combinePDFs(pdfBuffers: Buffer[], options: {
       { inputs: { writeBuffers: pdfBuffers }, output: { numFiles: 1 } },
       async ({ inputs, output }) => {
         await exec(
-          `gs -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${(options.args && options.args.length > 0) ? `${options.args?.join(' ')} ` : ""}${inputs.join(
-            ' ',
-          )} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`,
+          `${options.execPath} -q -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=${output[0]} -dBATCH -dAutoRotatePages=/None ${
+            options.args && options.args.length > 0 ? `${options.args?.join(' ')} ` : ''
+          }${inputs.join(' ')} -c "[ /Creator () /Producer () /DOCINFO pdfmark"`,
         );
         return fs.readFile(output[0]);
       },
@@ -89,12 +95,19 @@ export async function combinePDFs(pdfBuffers: Buffer[], options: {
   }
 }
 
-export async function countPDFPages(pdfBuffer: Buffer): Promise<number> {
+export async function countPDFPages(
+  pdfBuffer: Buffer,
+  options: {
+    execPath?: string;
+  } = {
+    execPath: 'gs',
+  },
+): Promise<number> {
   try {
     return await useTempFilesPDFIn<number>(pdfBuffer, async input => {
       const escapedInput = input.replace(/\\/g, '\\\\');
       let { stdout } = await exec(
-        `gs -q -dNOPAUSE -dBATCH -dNOSAFER -dNODISPLAY -c "(${escapedInput}) (r) file runpdfbegin pdfpagecount = quit"`,
+        `${options.execPath} -q -dNOPAUSE -dBATCH -dNOSAFER -dNODISPLAY -c "(${escapedInput}) (r) file runpdfbegin pdfpagecount = quit"`,
       );
 
       /**
@@ -122,11 +135,20 @@ export async function countPDFPages(pdfBuffer: Buffer): Promise<number> {
   }
 }
 
-export async function extractPDFPages(pdfBuffer: Buffer, firstPage: number, lastPage: number): Promise<Buffer> {
+export async function extractPDFPages(
+  pdfBuffer: Buffer,
+  firstPage: number,
+  lastPage: number,
+  options: {
+    execPath?: string;
+  } = {
+    execPath: 'gs',
+  },
+): Promise<Buffer> {
   try {
     return await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
       await exec(
-        `gs -q -dNOPAUSE -sDEVICE=pdfwrite -dBATCH -dNOSAFER -dFirstPage=${firstPage} -dLastPage=${lastPage} -dAutoRotatePages=/None -sOutputFile=${output} ${input}`,
+        `${options.execPath} -q -dNOPAUSE -sDEVICE=pdfwrite -dBATCH -dNOSAFER -dFirstPage=${firstPage} -dLastPage=${lastPage} -dAutoRotatePages=/None -sOutputFile=${output} ${input}`,
       );
     });
   } catch (e: any) {
@@ -148,22 +170,26 @@ export async function rotatePDF(pdfBuffer: Buffer, direction: '90' | '180' | '27
 
 /**
  * Converts a PDF to PDF/A.
- * 
+ *
  * @param pdfBuffer - Buffer of the PDF to convert
  * @param options - Options for the conversion
  * @param options.version - PDF/A version to convert to. Defaults to 1.
- * @returns 
+ * @returns
  */
 export async function convertToPDFA(
   pdfBuffer: Buffer,
-  options = {
+  options: {
+    execPath?: string;
+    version?: number;
+  } = {
+    execPath: 'gs',
     version: 1,
   },
 ): Promise<Buffer> {
   try {
     return await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
       await exec(
-        `gs -dPDFA -dBATCH -dNOPAUSE -sColorConversionStrategy=UseDeviceIndependentColor -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=${options.version} -sOutputFile=${output} ${input}`,
+        `${options.execPath} -dPDFA -dBATCH -dNOPAUSE -sColorConversionStrategy=UseDeviceIndependentColor -sDEVICE=pdfwrite -dPDFACompatibilityPolicy=${options.version} -sOutputFile=${output} ${input}`,
       );
     });
   } catch (e: any) {
@@ -182,6 +208,11 @@ export async function renderPDFPagesToPNG(
   firstPage?: number,
   lastPage?: number,
   resolution = 300,
+  options: {
+    execPath?: string;
+  } = {
+    execPath: 'gs',
+  },
 ): Promise<Buffer[]> {
   const numPages = await countPDFPages(pdfBuffer);
 
@@ -204,7 +235,7 @@ export async function renderPDFPagesToPNG(
     return await useTempFilesPDFIn(pdfBuffer, async input => {
       const outDir = tempy.directory();
       await exec(
-        `gs -q -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -sDEVICE=png16m -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r${resolution} -sOutputFile=${outDir}/%d.png -dFirstPage=${firstPage} -dLastPage=${lastPage} ${input}`,
+        `${options.execPath} -q -dQUIET -dSAFER -dBATCH -dNOPAUSE -dNOPROMPT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 -sDEVICE=png16m -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r${resolution} -sOutputFile=${outDir}/%d.png -dFirstPage=${firstPage} -dLastPage=${lastPage} ${input}`,
       );
 
       const outFiles = [];
@@ -235,20 +266,29 @@ export async function isValidPDF(pdfBuffer: Buffer): Promise<boolean> {
  * @param options Compression options
  * @returns Buffer
  */
-export async function compressPDF(pdfBuffer: Buffer | string, options: {
-  encoding?: BufferEncoding,
-  args?: string[]
-} = {
-  encoding: "base64",
-  args: [ "-dPDFSETTINGS=/screen" ]
-}): Promise<Buffer> {
+export async function compressPDF(
+  pdfBuffer: Buffer | string,
+  options: {
+    execPath?: string;
+    encoding?: BufferEncoding;
+    args?: string[];
+  } = {
+    execPath: 'gs',
+    encoding: 'base64',
+    args: ['-dPDFSETTINGS=/screen'],
+  },
+): Promise<Buffer> {
   try {
-    if(typeof pdfBuffer === 'string'){
-      pdfBuffer = Buffer.from(pdfBuffer, options.encoding)
+    if (typeof pdfBuffer === 'string') {
+      pdfBuffer = Buffer.from(pdfBuffer, options.encoding);
     }
     const compressedPdf = await useTempFilesPDFInOut(pdfBuffer, async (input, output) => {
       await exec(
-        `gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -sOutputFile=${output} -dCompatibilityLevel=1.4 -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${(options.args && options.args.length > 0) ? `${options.args?.join(' ')} ` : ""}-f ${input}`,
+        `${
+          options.execPath
+        } -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -sOutputFile=${output} -dCompatibilityLevel=1.4 -dEmbedAllFonts=true -dSubsetFonts=true -dColorImageDownsampleType=/Bicubic -dColorImageResolution=144 -dGrayImageDownsampleType=/Bicubic -dGrayImageResolution=144 -dMonoImageDownsampleType=/Bicubic -dMonoImageResolution=144 ${
+          options.args && options.args.length > 0 ? `${options.args?.join(' ')} ` : ''
+        }-f ${input}`,
       );
     });
     if (pdfBuffer.length < compressedPdf.length) {
